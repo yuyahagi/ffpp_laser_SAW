@@ -1,0 +1,41 @@
+load  "msh3"
+load  "medit"
+
+string  filename = "temp10_sols/temp10_pulse_ellipse_on_sub10um";
+int nt = 2500 / 2;  // Number of data points
+
+mesh3	Th = readmesh3("gmsh_test/test6_01_ellipse_sub10um_L1_2um_periodic_topsub.mesh");
+
+fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+Vh [u1,u2,u3];
+VhScalar uAbs, ur, uphi;
+
+int ne;             // Number of data elements in a mesh
+int t, m, i, j, k, nx, ny, nz;
+nx = 75/5; ny = 150/5; nz = 30/5;   // For OOMMF. Number of cells in x, y, and z direction.
+real  xbase, ybase, zbase;
+xbase = -75.0/2+2.5;
+ybase = -150.0/2+2.5;
+zbase = 2.5;
+real  xcell=5, ycell=5, zcell=5;
+
+for(m=0; m<1; m++) {
+  t = (m+1)*2;
+  cout << "t = " << t << endl;
+  ifstream ifile(filename+"."+(100000+t*10)+".txt");
+  ofstream ofile(filename+"_noheader."+(100000+m)+".txt");
+  ifile >> ne;	// Number of elements in the mesh
+  for (j=0; j<ne; j++) {
+    ifile >> u1[][j] >> u2[][j] >> u3[][j];
+  }
+
+  for (k=0; k<nz; k++) {
+    for (j=0; j<ny; j++) {
+      for (i=0; i<nx; i++) {
+        //cout << "(x, y, z) = (" << xbase+i*xcell << ", " << ybase+j*ycell << ", " << zbase+k*zcell << ")" << endl;
+        ofile << u1(xbase+i*xcell, ybase+j*ycell, zbase+k*zcell) << "  " << u2(xbase+i*xcell, ybase+j*ycell, zbase+k*zcell) << "  " << u3(xbase+i*xcell, ybase+j*ycell, zbase+k*zcell) << endl;
+      }
+    }
+  }
+}
