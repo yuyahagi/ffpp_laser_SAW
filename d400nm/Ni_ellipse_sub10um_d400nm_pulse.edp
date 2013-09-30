@@ -1,0 +1,165 @@
+// 2013-09-30 Yu Yahagi
+// Time evolution of elastic modes in an elliptical disk on the substrate.
+// Saves the displacement vectors in a text file at a certain time interval.
+// The format is as follows.
+// Line 1    : [number of elements]
+// Line 2-EOF: u1 u2 u3
+//
+// Here, nickel ellipse on Si3N4 (SiN?) substrate is assumed with the following
+// elastic parameters
+// Ni
+// Young's modulus E = 200 GPa, Poiison's ratio nu = 0.24, density 8900 kg/m3
+// Si3N4 substrate
+// Young's modulus E = 200 GPa, Poiison's ratio nu = 0.24, density 8900 kg/m3
+
+load "msh3"
+load "medit"
+
+//////////////////////////////////////////////////////////////////////////////
+// Finite Element spaces, functions, and macros
+//////////////////////////////////////////////////////////////////////////////
+mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L10um_periodic_top.mesh");
+
+fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+Vh [u1,u2,u3], [v1,v2,v3], [uu1,uu2,uu3], [uuu1,uuu2,uuu3];
+Vh [ur1,ur2,ur3];     // For visualization
+VhScalar uAbs, ur, uphi;
+// Initial displacement
+func u10 = 1e-5*x*exp(-(z-30)^2/5^2)*exp(-((2*x)^2+y^2)/40^2);
+func u20 = 1e-5*y*exp(-(z-30)^2/5^2)*exp(-((2*x)^2+y^2)/40^2);
+func u30 = 1e-5  *exp(-(z-30)^2/5^2)*exp(-((2*x)^2+y^2)/40^2);
+real sqrt2=sqrt(2.);
+macro epsilon(u1,u2,u3)  [dx(u1),dy(u2),dz(u3),(dz(u2)+dy(u3))/sqrt2,(dz(u1)+dx(u3))/sqrt2,(dy(u1)+dx(u2))/sqrt2] // EOM
+macro div(u1,u2,u3) ( dx(u1)+dy(u2)+dz(u3) ) // EOM
+
+//////////////////////////////////////////////////////////////////////////////
+// Material parameters
+//////////////////////////////////////////////////////////////////////////////
+real E1 = 2.0e-22, nu1 = 0.24; // E [kg/(nm ps^2)] for the ellipse
+real rho1 = 8.9e-24;       // rho [kg/nm^3]
+real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
+real mu1 = E1/(2*(1+nu1));
+real E2 = 1.85e-22, nu2 = 0.28; // E [kg/(nm ps^2)] for the substrate
+real rho2 = 2.3290e-24;       // rho [kg/nm^3]
+real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
+real mu2 = E2/(2*(1+nu2));
+
+//////////////////////////////////////////////////////////////////////////////
+// Other simulation parameters
+//////////////////////////////////////////////////////////////////////////////
+string  filename = "sols/Ni_ellipse_sub10um_d400nm_pulse";
+real dt = 0.4, T = 2500.0;  // in ps
+real[int] viso(20);
+for(int i=0; i<20; i++) {
+  viso[i] = -1.8 + i*0.2;
+}
+
+cout << "E1 = " << E1 << ", nu1 = " << nu1 << ", rho1 = " << rho1 << ", mu1 = " << mu1 << ", lambda1 = " << lambda1 << endl;
+cout << "E2 = " << E2 << ", nu2 = " << nu2 << ", rho2 = " << rho2 << ", mu2 = " << mu2 << ", lambda2 = " << lambda2 << endl;
+cout << "dt = " << dt << ", T = " << T << endl;
+//plot(Th, wait=1);
+
+//////////////////////////////////////////////////////////////////////////////
+// Problem specification
+//////////////////////////////////////////////////////////////////////////////
+problem pulse([u1,u2,u3],[v1,v2,v3]) =
+  int3d(Th,21)(
+		lambda1*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu1*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
+    + rho1/dt^2*(u1*v1+u2*v2+u3*v3)
+  )
+  + int3d(Th,21)(
+    rho1/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
+  )
+  + int3d(Th,22)(
+		lambda2*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu2*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
+    + rho2/dt^2*(u1*v1+u2*v2+u3*v3)
+  )
+  + int3d(Th,22)(
+    rho2/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
+  )
+  + on(5, u1=0, u2=0, u3=0)
+  + on(7, 9, 11, 13, u1=0)
+  + on(6, 8, 10, 12, u2=0)
+;
+
+//////////////////////////////////////////////////////////////////////////////
+// Time evolution
+//////////////////////////////////////////////////////////////////////////////
+real t = 0;
+[u1,u2,u3] = [u10,u20,u30];
+[uu1,uu2,uu3] = [u10,u20,u30];
+[uuu1,uuu2,uuu3] = [u10,u20,u30];
+//plot(u1, wait=1, nbiso=20, value=1, dim=2, cmm="u10");
+//plot(u2, wait=1, nbiso=20, value=1, dim=2, cmm="u20");
+//plot(u3, wait=1, nbiso=20, value=1, dim=2, cmm="u30");
+real dmax=1.0e-30;
+real coef = 3000;//1.0/dmax;
+int[int]  ref2=[1,0,2,0];
+mesh3 ThM;
+{
+  ofstream ofileTime(filename+"_time.txt");
+  ofstream ofileIndex(filename+"_index.txt");
+  ofileTime << "#t "
+    << "u1( 0, 0,  0) u2( 0, 0,  0) u3( 0, 0,  0) "
+    << "u1( 0, 0, 15) u2( 0, 0, 15) u3( 0, 0, 15) "
+    << "u1( 0, 0, 30) u2( 0, 0, 30) u3( 0, 0, 30) "
+    << "u1( 0, 0,-15) u2( 0, 0,-15) u3( 0, 0,-15) "
+    << "u1(30, 0,  0) u2(30, 0,  0) u3(30, 0,  0) "
+    << "u1(30, 0, 15) u2(30, 0, 15) u3(30, 0, 15) "
+    << "u1(30, 0, 30) u2(30, 0, 30) u3(30, 0, 30) "
+    << "u1(30, 0,-15) u2(30, 0,-15) u3(30, 0,-15) "
+    << "u1( 0,60,  0) u2( 0,60,  0) u3( 0,60,  0) "
+    << "u1( 0,60, 15) u2( 0,60, 15) u3( 0,60, 15) "
+    << "u1( 0,60, 30) u2( 0,60, 30) u3( 0,60, 30) "
+    << "u1( 0,60,-15) u2( 0,60,-15) u3( 0,60,-15) "
+    << "u1( 0, 0,-9950) u2(0, 0,-9950) u3( 0, 0,-9950)" << endl;
+  ofileIndex << "#file_index t(ps)" << endl;
+
+  for(int m=0; m<=T/dt; m++) {
+    t = t + dt;
+    pulse;
+
+    uAbs = sqrt(u1^2+u2^2+u3^2);
+
+    // Plot with deformed mesh
+    dmax = uAbs[].max;
+    coef = 20.0/dmax;
+    ThM=movemesh3(Th,transfo=[x+u1*coef,y+u2*coef,z+u3*coef]);
+    plot(ThM, u3, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
+    //plot(ThM, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
+
+    ofileTime << t 
+      << " " << u1( 0, 0,  0) << " " << u2( 0, 0,  0) << " " << u3( 0, 0,  0)
+      << " " << u1( 0, 0, 15) << " " << u2( 0, 0, 15) << " " << u3( 0, 0, 15)
+      << " " << u1( 0, 0, 30) << " " << u2( 0, 0, 30) << " " << u3( 0, 0, 30)
+      << " " << u1( 0, 0,-15) << " " << u2( 0, 0,-15) << " " << u3( 0, 0,-15)
+      << " " << u1(30, 0,  0) << " " << u2(30, 0,  0) << " " << u3(30, 0,  0)
+      << " " << u1(30, 0, 15) << " " << u2(30, 0, 15) << " " << u3(30, 0, 15)
+      << " " << u1(30, 0, 30) << " " << u2(30, 0, 30) << " " << u3(30, 0, 30)
+      << " " << u1(30, 0,-15) << " " << u2(30, 0,-15) << " " << u3(30, 0,-15)
+      << " " << u1( 0,60,  0) << " " << u2( 0,60,  0) << " " << u3( 0,60,  0)
+      << " " << u1( 0,60, 15) << " " << u2( 0,60, 15) << " " << u3( 0,60, 15)
+      << " " << u1( 0,60, 30) << " " << u2( 0,60, 30) << " " << u3( 0,60, 30)
+      << " " << u1( 0,60,-15) << " " << u2( 0,60,-15) << " " << u3( 0,60,-15)
+      << " " << u1( 0, 0,-9950) << " " << u2( 0, 0,-9950) << " " << u3( 0, 0,-9950) << endl;
+
+    // Save the displacement for every 2 ps.
+    if(rint(10*t) % 20 == 0) {
+      ofileIndex << m << " " << t << endl;
+      savemesh(Th, filename+"."+(100000+10*t)+".meshb");
+      {
+        ofstream ofileVector(filename+"."+(100000+10*t)+".txt");
+        ofileVector << u1[].n << endl;
+        for (int j=0; j<u1[].n; j++) {
+          ofileVector << u1[][j] << " " << u2[][j] << " " << u3[][j] << endl;
+        }
+      }
+    }
+
+    [uuu1,uuu2,uuu3] = [uu1,uu2,uu3];
+    [uu1,uu2,uu3] = [u1,u2,u3];
+    cout << "t = " << t << " L^2-Error = " << sqrt(int3d(Th)((u3-t*z^4)^2)) << endl;
+  }
+}
+
