@@ -36,12 +36,12 @@ macro div(u1,u2,u3) ( dx(u1)+dy(u2)+dz(u3) ) // EOM
 //////////////////////////////////////////////////////////////////////////////
 // Material parameters
 //////////////////////////////////////////////////////////////////////////////
-real E1 = 2.0e-22, nu1 = 0.24; // E [kg/(nm ps^2)] for the ellipse
+real E1 = 2.0e-22, nu1 = 0.31; // E [kg/(nm ps^2)] for the ellipse
 real rho1 = 8.9e-24;       // rho [kg/nm^3]
 real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
 real mu1 = E1/(2*(1+nu1));
-real E2 = 1.85e-22, nu2 = 0.28; // E [kg/(nm ps^2)] for the substrate
-real rho2 = 2.3290e-24;       // rho [kg/nm^3]
+real E2 = 2.0e-22, nu2 = 0.24; // E [kg/(nm ps^2)] for the substrate
+real rho2 = 3.2e-24;       // rho [kg/nm^3]
 real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
 real mu2 = E2/(2*(1+nu2));
 
