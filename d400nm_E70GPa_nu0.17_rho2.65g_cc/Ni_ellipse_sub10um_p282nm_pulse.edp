@@ -40,15 +40,15 @@ real E1 = 2.0e-22, nu1 = 0.31; // E [kg/(nm ps^2)] for the ellipse
 real rho1 = 8.9e-24;       // rho [kg/nm^3]
 real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
 real mu1 = E1/(2*(1+nu1));
-real E2 = 2.0e-22, nu2 = 0.24; // E [kg/(nm ps^2)] for the substrate
-real rho2 = 3.2e-24;       // rho [kg/nm^3]
+real E2 = 0.7e-22, nu2 = 0.17; // E [kg/(nm ps^2)] for the substrate
+real rho2 = 2.65e-24;       // rho [kg/nm^3]
 real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
 real mu2 = E2/(2*(1+nu2));
 
 //////////////////////////////////////////////////////////////////////////////
 // Other simulation parameters
 //////////////////////////////////////////////////////////////////////////////
-string  filename = "sols/Ni_ellipse_sub10um_d400nm_pulse";
+string  filename = "sols/Ni_ellipse_sub10um_p282nm_pulse";
 real dt = 0.4, T = 2500.0;  // in ps
 real[int] viso(20);
 for(int i=0; i<20; i++) {
