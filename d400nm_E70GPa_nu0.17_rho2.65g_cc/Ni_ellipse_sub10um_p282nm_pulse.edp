@@ -152,7 +152,7 @@ mesh3 ThM;
         ofstream ofileVector(filename+"."+(100000+10*t)+".txt");
         ofileVector << u1[].n << endl;
         for (int j=0; j<u1[].n; j++) {
-          ofileVector << u1[][j] << " " << u2[][j] << " " << u3[][j] << endl;
+          ofileVector << u1[][j]*1e-9 << " " << u2[][j]*1e-9 << " " << u3[][j]*1e-9 << endl;
         }
       }
     }

@@ -5,6 +5,8 @@
 *.omf
 d300nm_E200GPa_nu0.24_rho3.2g_cc/
 d400nm_E200GPa_nu0.24_rho3.2g_cc/
+d300nm_u0_02_E70GPa_nu0.17_rho2.65g_cc/
+d400nm_u0_02_E70GPa_nu0.17_rho2.65g_cc/
 d300nm_E70GPa_nu0.17_rho2.65g_cc/
 d400nm_E70GPa_nu0.17_rho2.65g_cc/sols
 d400nm_E70GPa_nu0.17_rho2.65g_cc/Hmel
