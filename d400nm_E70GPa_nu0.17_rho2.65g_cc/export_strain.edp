@@ -1,0 +1,44 @@
+load  "msh3"
+load  "medit"
+
+string  inputFilenameBase = "sols/Ni_ellipse_sub10um_p282nm_pulse_nm";
+string  outputFilename = "sols/strain_t.txt";
+int nt = 2500 / 2;  // Number of data points
+
+mesh3	Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L10um_periodic_top.mesh");
+
+fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+Vh [u1,u2,u3];
+VhScalar uAbs, ur, uphi, ezz;
+
+int ne;             // Number of data elements in a mesh
+int t, m, j, k, nz;
+nz = 530/5;   // For OOMMF. Number of cells in x, y, and z direction.
+real  zbase;
+zbase = -500+2.5;
+real  zcell=5.0;
+
+ofstream ofile(outputFilename);
+
+cout << "Outputs strain e_zz for -500 < z < 30 nm." << endl;
+
+ofile << "# t (ps), e_zz(0,0,-497.5nm), e_zz(0,0,-492.5nm), ..." << endl;
+for(m=0; m<nt; m++) {
+  t = (m+1)*2;
+  ifstream ifile(inputFilenameBase+"."+(100000+t*10)+".txt");
+  ifile >> ne;	// Number of elements in the mesh
+  for (j=0; j<ne; j++) {
+    ifile >> u1[][j] >> u2[][j] >> u3[][j];
+  }
+
+  cout << "t = " << t << endl;
+
+  ezz = dz(u3);
+  ofile << t << "  ";
+  for (k=0; k<nz; k++) {
+    ofile << ezz(0,0,zbase+k*zcell) << "  ";
+    // dz(u3)(0,0,zbase+k*zcell) does not work...
+  }
+  ofile << endl;
+}
