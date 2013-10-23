@@ -18,20 +18,18 @@ load "medit"
 //////////////////////////////////////////////////////////////////////////////
 // Finite Element spaces, functions, and macros
 //////////////////////////////////////////////////////////////////////////////
+real h = 30;  // [nm] height of the Ni ellipse
 mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L10um_periodic_top.mesh");
 
 fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+fespace VhParam(Th, P0, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 Vh [u1,u2,u3], [v1,v2,v3], [uu1,uu2,uu3], [uuu1,uuu2,uuu3];
 Vh [ur1,ur2,ur3];     // For visualization
 VhScalar uAbs, ur, uphi;
-// Initial displacement
-func u10 = 1e-5*x*exp(-(z-30)^2/5^2)*exp(-((2*x)^2+y^2)/40^2);
-func u20 = 1e-5*y*exp(-(z-30)^2/5^2)*exp(-((2*x)^2+y^2)/40^2);
-func u30 = 1e-5  *exp(-(z-30)^2/5^2)*exp(-((2*x)^2+y^2)/40^2);
-real sqrt2=sqrt(2.);
-macro epsilon(u1,u2,u3)  [dx(u1),dy(u2),dz(u3),(dz(u2)+dy(u3))/sqrt2,(dz(u1)+dx(u3))/sqrt2,(dy(u1)+dx(u2))/sqrt2] // EOM
-macro div(u1,u2,u3) ( dx(u1)+dy(u2)+dz(u3) ) // EOM
+VhParam reg=region;
+int regNi=reg(0,0,h/2);
+int regSubstrate=reg(0,0,-h/2);
 
 //////////////////////////////////////////////////////////////////////////////
 // Material parameters
@@ -40,6 +38,7 @@ real E1 = 2.0e-22, nu1 = 0.31; // E [kg/(nm ps^2)] for the ellipse
 real rho1 = 8.9e-24;       // rho [kg/nm^3]
 real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
 real mu1 = E1/(2*(1+nu1));
+real alpha1 = 1.3e-5; // [K-1] Linear thermal expansion
 real E2 = 0.7e-22, nu2 = 0.17; // E [kg/(nm ps^2)] for the substrate
 real rho2 = 2.65e-24;       // rho [kg/nm^3]
 real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
@@ -49,7 +48,7 @@ real mu2 = E2/(2*(1+nu2));
 // Other simulation parameters
 //////////////////////////////////////////////////////////////////////////////
 string  filename = "sols/Ni_ellipse_sub10um_p282nm_pulse";
-real dt = 0.4, T = 2500.0;  // in ps
+real dt = 0.4, tStart = 0.0, tEnd = 2500.0;  // in ps
 real[int] viso(20);
 for(int i=0; i<20; i++) {
   viso[i] = -1.8 + i*0.2;
@@ -57,19 +56,49 @@ for(int i=0; i<20; i++) {
 
 cout << "E1 = " << E1 << ", nu1 = " << nu1 << ", rho1 = " << rho1 << ", mu1 = " << mu1 << ", lambda1 = " << lambda1 << endl;
 cout << "E2 = " << E2 << ", nu2 = " << nu2 << ", rho2 = " << rho2 << ", mu2 = " << mu2 << ", lambda2 = " << lambda2 << endl;
-cout << "dt = " << dt << ", T = " << T << endl;
+cout << "dt = " << dt << ", tEnd = " << tEnd << endl;
 //plot(Th, wait=1);
+
+// Heating from fit
+real A1 = 51.378; // [K]
+real A2 = 1.3736; // [ps]
+real A3 = 30.607; // [K]
+real A4 = 1.0204; // [ps]
+real A5 = 6.0719; // [ps]
+real A6 = -36.768;// [K]
+real A7 = 1.5713; // [ps]
+real A8 = 6.4446; // [ps]
+real decay1 = 500;  // [ps]
+real decay2 = 4.548;// [ps]
+
+real TRiseCenter=0, TRiseTop=0, TRiseBottom=0, TRiseDecay=1;
+//VhScalar TRise;
+func real calcTRiseCenter(real t) { return A1*(1-exp(-t/A2)); }
+func real calcTRiseTop(real t)    { return TRiseCenter + A3*(1-exp(-t/A4))*exp(-t/A5); }
+func real calcTRiseBottom(real t) { return TRiseCenter + A6*(1-exp(-t/A7))*exp(-t/A8); }
+func real calcTRiseDecay(real t) {
+  return (1-decay2/(decay1+decay2)*exp(-t/decay2))*exp(-t/decay1)
+    + decay2/(decay1+decay2);
+}
+func TRise=z; // Dummy function. This is to be updated for each step.
+
+func u10 = 0; func u20 = 0; func u30 = 0;
 
 //////////////////////////////////////////////////////////////////////////////
 // Problem specification
 //////////////////////////////////////////////////////////////////////////////
-problem pulse([u1,u2,u3],[v1,v2,v3]) =
+real sqrt2=sqrt(2.);
+macro epsilon(u1,u2,u3)  [dx(u1),dy(u2),dz(u3),(dz(u2)+dy(u3))/sqrt2,(dz(u1)+dx(u3))/sqrt2,(dy(u1)+dx(u2))/sqrt2] // EOM
+macro div(u1,u2,u3) ( dx(u1)+dy(u2)+dz(u3) ) // EOM
+
+problem ProblemElastic([u1,u2,u3],[v1,v2,v3]) =
   int3d(Th,21)(
 		lambda1*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu1*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
     + rho1/dt^2*(u1*v1+u2*v2+u3*v3)
   )
   + int3d(Th,21)(
     rho1/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
+    -3*alpha1*E1/(1-2*nu1)*TRise*div(v1,v2,v3)
   )
   + int3d(Th,22)(
 		lambda2*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu2*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
@@ -86,13 +115,10 @@ problem pulse([u1,u2,u3],[v1,v2,v3]) =
 //////////////////////////////////////////////////////////////////////////////
 // Time evolution
 //////////////////////////////////////////////////////////////////////////////
-real t = 0;
+real t = tStart;
 [u1,u2,u3] = [u10,u20,u30];
 [uu1,uu2,uu3] = [u10,u20,u30];
 [uuu1,uuu2,uuu3] = [u10,u20,u30];
-//plot(u1, wait=1, nbiso=20, value=1, dim=2, cmm="u10");
-//plot(u2, wait=1, nbiso=20, value=1, dim=2, cmm="u20");
-//plot(u3, wait=1, nbiso=20, value=1, dim=2, cmm="u30");
 real dmax=1.0e-30;
 real coef = 3000;//1.0/dmax;
 int[int]  ref2=[1,0,2,0];
@@ -116,17 +142,39 @@ mesh3 ThM;
     << "u1( 0, 0,-9950) u2(0, 0,-9950) u3( 0, 0,-9950)" << endl;
   ofileIndex << "#file_index t(ps)" << endl;
 
-  for(int m=0; m<=T/dt; m++) {
+  int m = -1;
+  while(t < tEnd) {
+    m++;
     t = t + dt;
-    pulse;
+    TRiseCenter = calcTRiseCenter(t);
+    TRiseTop    = calcTRiseTop(t);
+    TRiseBottom = calcTRiseBottom(t);
+    TRiseDecay  = calcTRiseDecay(t);
+    TRise = (reg==regNi)*(
+      (z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
+      + (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
+    ) + 0;
 
-    uAbs = sqrt(u1^2+u2^2+u3^2);
+    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << TRiseDecay << endl;
+
+    ProblemElastic;
+    //plot(TRise, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
+    //for(int j=0; j<31; j++) {
+    //  cout << TRise(0,0,j) << " ";
+    //}
+    //cout << endl;
+
+    // For loop is faster than
+    // uAbs = sqrt(u1^2+u2^2+u3^2);
+    for (int j=0; j<20; j++) {
+      uAbs[][j] = sqrt(u1[][j*3]^2+u2[][j*3+1]^2+u3[][j*3+2]^2);
+    }
 
     // Plot with deformed mesh
     dmax = uAbs[].max;
     coef = 20.0/dmax;
     ThM=movemesh3(Th,transfo=[x+u1*coef,y+u2*coef,z+u3*coef]);
-    plot(ThM, u3, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
+    plot(ThM, u3, wait=0, dim=2, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
     //plot(ThM, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
 
     ofileTime << t 
@@ -157,9 +205,14 @@ mesh3 ThM;
       }
     }
 
-    [uuu1,uuu2,uuu3] = [uu1,uu2,uu3];
-    [uu1,uu2,uu3] = [u1,u2,u3];
-    cout << "t = " << t << " L^2-Error = " << sqrt(int3d(Th)((u3-t*z^4)^2)) << endl;
+    // Copy old vectors.
+    // For loop is way faster than
+    // [uuu1,uuu2,uuu3] = [uu1,uu2,uu3];
+    for (int j=0; j<u1[].n; j++) {
+      uuu1[][j] = uu1[][j]; uuu2[][j] = uu2[][j]; uuu3[][j] = uu3[][j]; 
+      uu1[][j] = u1[][j]; uu2[][j] = u2[][j]; uu3[][j] = u3[][j]; 
+    }
+    cout << "t = " << t << endl;
   }
 }
 
