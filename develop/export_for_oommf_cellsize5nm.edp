@@ -11,7 +11,6 @@ mesh3	Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L10um_p
 fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 Vh [u1,u2,u3];
-VhScalar uAbs, ur, uphi;
 
 int ne;             // Number of data elements in a mesh
 int t, m, i, j, k, nx, ny, nz;

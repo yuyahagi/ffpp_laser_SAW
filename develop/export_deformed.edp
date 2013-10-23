@@ -19,7 +19,7 @@ real  coefFix = 1e8;
 int nt = 2500 / 2;  // Number of data points
 int ne;             // Number of data elements in a mesh
 int t;
-for(int i=0; i<2500; i++) {
+for(int i=0; i<nt; i++) {
   t = (i+1)*2;
   ifstream ifile(filename+"."+(100000+t*10)+".txt");
   ifile >> ne;	// Number of elements in the mesh
@@ -27,7 +27,11 @@ for(int i=0; i<2500; i++) {
   	ifile >> u1[][j] >> u2[][j] >> u3[][j];
   }
 
-  uAbs = sqrt(u1^2+u2^2+u3^2);
+  // For loop is faster than
+  // uAbs = sqrt(u1^2+u2^2+u3^2);
+  for (int j=0; j<uAbs.n; j++) {
+    uAbs[][j] = sqrt(u1[][j*3]^2+u2[][j*3+1]^2+u3[][j*3+2]^2);
+  }
   dmax = uAbs[].max;
 
   // The factor by whic visualization is goitg to be enphasized.
