@@ -166,7 +166,7 @@ mesh3 ThM;
 
     // For loop is faster than
     // uAbs = sqrt(u1^2+u2^2+u3^2);
-    for (int j=0; j<20; j++) {
+    for (int j=0; j<uAbs.n; j++) {
       uAbs[][j] = sqrt(u1[][j*3]^2+u2[][j*3+1]^2+u3[][j*3+2]^2);
     }
 
