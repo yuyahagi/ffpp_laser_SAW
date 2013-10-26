@@ -1,7 +1,7 @@
 load  "msh3"
 load  "medit"
 
-string  inputFilenameBase = "sols/Ni_ellipse_sub10um_p282nm_pulse_nm";
+string  inputFilenameBase = "sols/Ni_ellipse_sub10um_p282nm_pulse";
 string  outputFilename = "sols/strain_t.txt";
 int nt = 2500 / 2;  // Number of data points
 
@@ -14,16 +14,16 @@ VhScalar uAbs, ur, uphi, ezz;
 
 int ne;             // Number of data elements in a mesh
 int t, m, j, k, nz;
-nz = 530/5;   // For OOMMF. Number of cells in x, y, and z direction.
+nz = 2030/5;   // For OOMMF. Number of cells in x, y, and z direction.
 real  zbase;
-zbase = -500+2.5;
+zbase = -2000+2.5;
 real  zcell=5.0;
 
 ofstream ofile(outputFilename);
 
-cout << "Outputs strain e_zz for -500 < z < 30 nm." << endl;
+cout << "Outputs strain e_zz for -2000 < z < 30 nm." << endl;
 
-ofile << "# t (ps), e_zz(0,0,-497.5nm), e_zz(0,0,-492.5nm), ..." << endl;
+ofile << "# t (ps), e_zz(0,0,-1997.5nm), e_zz(0,0,-1992.5nm), ..." << endl;
 for(m=0; m<nt; m++) {
   t = (m+1)*2;
   ifstream ifile(inputFilenameBase+"."+(100000+t*10)+".txt");
@@ -34,7 +34,9 @@ for(m=0; m<nt; m++) {
 
   cout << "t = " << t << endl;
 
-  ezz = dz(u3);
+  // u3 is stored in unit of [m] and the mesh is defined in [nm].
+  // So you need a factor of 1e9 to calculate the strain.
+  ezz = dz(u3)*1e9;
   ofile << t << "  ";
   for (k=0; k<nz; k++) {
     ofile << ezz(0,0,zbase+k*zcell) << "  ";
