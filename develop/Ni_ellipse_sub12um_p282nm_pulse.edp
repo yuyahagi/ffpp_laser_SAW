@@ -19,7 +19,7 @@ load "medit"
 // Finite Element spaces, functions, and macros
 //////////////////////////////////////////////////////////////////////////////
 real h = 30;  // [nm] height of the Ni ellipse
-mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L10um_periodic_top.mesh");
+mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L12um_periodic_top.mesh");
 
 fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
@@ -47,7 +47,7 @@ real mu2 = E2/(2*(1+nu2));
 //////////////////////////////////////////////////////////////////////////////
 // Other simulation parameters
 //////////////////////////////////////////////////////////////////////////////
-string  filename = "sols/Ni_ellipse_sub10um_p282nm_pulse";
+string  filename = "sols/Ni_ellipse_sub12um_p282nm_pulse";
 real dt = 0.4, tStart = 0.0, tEnd = 2500.0;  // in ps
 real[int] viso(20);
 for(int i=0; i<20; i++) {

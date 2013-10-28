@@ -1,8 +1,8 @@
 load  "msh3"
 load  "medit"
 
-string  filename = "sols/Ni_ellipse_sub10um_p282nm_pulse";
-mesh3	Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L10um_periodic_top.mesh");
+string  filename = "sols/Ni_ellipse_sub12um_p282nm_pulse";
+mesh3	Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L12um_periodic_top.mesh");
 //plot(Th, wait=1);
 
 fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
