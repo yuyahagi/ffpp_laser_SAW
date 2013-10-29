@@ -19,6 +19,7 @@ load "medit"
 // Finite Element spaces, functions, and macros
 //////////////////////////////////////////////////////////////////////////////
 real h = 30;  // [nm] height of the Ni ellipse
+real a = 37.5, b = 75.0; // [nm] size of the ellipse
 mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L12um_periodic_top.mesh");
 
 fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
@@ -26,7 +27,7 @@ fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 fespace VhParam(Th, P0, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 Vh [u1,u2,u3], [v1,v2,v3], [uu1,uu2,uu3], [uuu1,uuu2,uuu3];
 Vh [ur1,ur2,ur3];     // For visualization
-VhScalar uAbs, ur, uphi;
+VhScalar uAbs, TPlot;
 VhParam reg=region;
 int regNi=reg(0,0,h/2);
 int regSubstrate=reg(0,0,-h/2);
@@ -34,15 +35,22 @@ int regSubstrate=reg(0,0,-h/2);
 //////////////////////////////////////////////////////////////////////////////
 // Material parameters
 //////////////////////////////////////////////////////////////////////////////
+// Nickel
 real E1 = 2.0e-22, nu1 = 0.31; // E [kg/(nm ps^2)] for the ellipse
 real rho1 = 8.9e-24;       // rho [kg/nm^3]
 real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
 real mu1 = E1/(2*(1+nu1));
 real alpha1 = 1.3e-5; // [K-1] Linear thermal expansion
+real C1 = 3.965e-21;  // [J nm-1 K-1] Specific heat capacity
+
+// Si dioxide
 real E2 = 0.7e-22, nu2 = 0.17; // E [kg/(nm ps^2)] for the substrate
 real rho2 = 2.65e-24;       // rho [kg/nm^3]
 real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
 real mu2 = E2/(2*(1+nu2));
+real alpha2 = 2e-5; // [K-1] Linear thermal expansion
+real C2 = 2.65e-21; // [J nm-1 K-1] Specific heat capacity
+real kappa2 = 1.5e-21;  // [J ps-1 nm-1 K-1] Thermal conductivity
 
 //////////////////////////////////////////////////////////////////////////////
 // Other simulation parameters
@@ -72,6 +80,7 @@ real decay1 = 500;  // [ps]
 real decay2 = 4.548;// [ps]
 
 real TRiseCenter=0, TRiseTop=0, TRiseBottom=0, TRiseDecay=1;
+real TRiseZDecay=1e-6;
 //VhScalar TRise;
 func real calcTRiseCenter(real t) { return A1*(1-exp(-t/A2)); }
 func real calcTRiseTop(real t)    { return TRiseCenter + A3*(1-exp(-t/A4))*exp(-t/A5); }
@@ -80,7 +89,20 @@ func real calcTRiseDecay(real t) {
   return (1-decay2/(decay1+decay2)*exp(-t/decay2))*exp(-t/decay1)
     + decay2/(decay1+decay2);
 }
-func TRise=z; // Dummy function. This is to be updated for each step.
+func real calcTRiseZDecay(real t) { return C2/(C1*h)/(exp(t/decay1)-1); }
+//func TRise=z; // Dummy function. This is to be updated for each step.
+func TRise = (reg==regNi)*(
+  (z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
+  + (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
+)
+//+ (reg==regSubstrate)*(
+//    (x^2/a^2+y^2/b^2<=1)*TRiseBottom*exp(TRiseZDecay*z)
+//  + (x^2/a^2+y^2/b^2>1)*(
+//    //  (x==0)*TRiseBottom*exp(TRiseZDecay*sqrt(z^2+(y-b)^2))
+//    TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
+//  )
+//)
++0;
 
 func u10 = 0; func u20 = 0; func u30 = 0;
 
@@ -106,6 +128,7 @@ problem ProblemElastic([u1,u2,u3],[v1,v2,v3]) =
   )
   + int3d(Th,22)(
     rho2/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
+    -3*alpha2*E2/(1-2*nu2)*TRise*div(v1,v2,v3)
   )
   + on(5, u1=0, u2=0, u3=0)
   + on(7, 9, 11, 13, u1=0)
@@ -146,19 +169,36 @@ mesh3 ThM;
   while(t < tEnd) {
     m++;
     t = t + dt;
+
+    cout << "t = " << t << endl;
     TRiseCenter = calcTRiseCenter(t);
     TRiseTop    = calcTRiseTop(t);
     TRiseBottom = calcTRiseBottom(t);
     TRiseDecay  = calcTRiseDecay(t);
-    TRise = (reg==regNi)*(
-      (z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
-      + (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
-    ) + 0;
+    TRiseZDecay = calcTRiseZDecay(t);
+    //TRise = (reg==regNi)*(
+    //  //(z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
+    //  //+ (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
+    //  50
+    //)
+    //+ (reg==regSubstrate)*(
+    //    (x^2/a^2+y^2/b^2<=1)*TRiseBottom*exp(TRiseZDecay*z)
+    //  + (x^2/a^2+y^2/b^2>1)*(
+    //    //  (x==0)*TRiseBottom*exp(TRiseZDecay*sqrt(z^2+(y-b)^2))
+    //    TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
+    //  )
+    //)
+    //;
 
-    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << TRiseDecay << endl;
+    TPlot = TRise;
+    for (int i=0; i<20; i++) {
+      cout << TPlot(0,0,30-i*3) << " ";
+    }
+    cout << endl;
+    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "nm, zdecay = " << TRiseZDecay << endl;
+    plot(TPlot, wait=0, fill=0, nbiso=20, value=1, cmm="T, t = "+t+" ps (dt ="+dt+")");
 
     ProblemElastic;
-    //plot(TRise, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
     //for(int j=0; j<31; j++) {
     //  cout << TRise(0,0,j) << " ";
     //}
@@ -212,7 +252,6 @@ mesh3 ThM;
       uuu1[][j] = uu1[][j]; uuu2[][j] = uu2[][j]; uuu3[][j] = uu3[][j]; 
       uu1[][j] = u1[][j]; uu2[][j] = u2[][j]; uu3[][j] = u3[][j]; 
     }
-    cout << "t = " << t << endl;
   }
 }
 
