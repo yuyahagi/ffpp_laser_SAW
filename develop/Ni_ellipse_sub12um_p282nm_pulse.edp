@@ -9,8 +9,9 @@
 // elastic parameters
 // Ni
 // Young's modulus E = 200 GPa, Poiison's ratio nu = 0.24, density 8900 kg/m3
-// Si3N4 substrate
-// Young's modulus E = 200 GPa, Poiison's ratio nu = 0.24, density 8900 kg/m3
+// Linear thermal expansion alpha = 1.3e-5
+// SiO2 substrate
+// Young's modulus E = 70 GPa, Poiison's ratio nu = 0.17, density 2650 kg/m3
 
 load "msh3"
 load "medit"
@@ -27,7 +28,9 @@ fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 fespace VhParam(Th, P0, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 Vh [u1,u2,u3], [v1,v2,v3], [uu1,uu2,uu3], [uuu1,uuu2,uuu3];
 Vh [ur1,ur2,ur3];     // For visualization
-VhScalar uAbs, TPlot;
+VhScalar uAbs;
+VhScalar TPlot;
+VhParam px=x, py=y, pz=z;
 VhParam reg=region;
 int regNi=reg(0,0,h/2);
 int regSubstrate=reg(0,0,-h/2);
@@ -80,7 +83,7 @@ real decay1 = 500;  // [ps]
 real decay2 = 4.548;// [ps]
 
 real TRiseCenter=0, TRiseTop=0, TRiseBottom=0, TRiseDecay=1;
-real TRiseZDecay=1e-6;
+real TRiseZDecay=1e6;
 //VhScalar TRise;
 func real calcTRiseCenter(real t) { return A1*(1-exp(-t/A2)); }
 func real calcTRiseTop(real t)    { return TRiseCenter + A3*(1-exp(-t/A4))*exp(-t/A5); }
@@ -91,18 +94,25 @@ func real calcTRiseDecay(real t) {
 }
 func real calcTRiseZDecay(real t) { return C2/(C1*h)/(exp(t/decay1)-1); }
 //func TRise=z; // Dummy function. This is to be updated for each step.
-func TRise = (reg==regNi)*(
-  (z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
-  + (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
-)
-//+ (reg==regSubstrate)*(
-//    (x^2/a^2+y^2/b^2<=1)*TRiseBottom*exp(TRiseZDecay*z)
-//  + (x^2/a^2+y^2/b^2>1)*(
-//    //  (x==0)*TRiseBottom*exp(TRiseZDecay*sqrt(z^2+(y-b)^2))
-//    TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
-//  )
-//)
+func real UpdateTRise(real t) {
+  TRiseCenter = calcTRiseCenter(t);
+  TRiseTop    = calcTRiseTop(t);
+  TRiseBottom = calcTRiseBottom(t);
+  TRiseDecay  = calcTRiseDecay(t);
+  TRiseZDecay = calcTRiseZDecay(t);
+}
+func TRise =
+(reg==regNi)*(z>h/2)
+  *( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
++ (reg==regNi)*(z<=h/2)
+  *( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
++ (reg==regSubstrate)*(x^2/a^2+y^2/b^2<=1)
+  *TRiseBottom*exp(-TRiseZDecay*abs(z))
++ (reg==regSubstrate)*(x^2/a^2+y^2/b^2>1)
+  *TRiseBottom*exp(-TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
 +0;
+
+//TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
 
 func u10 = 0; func u20 = 0; func u30 = 0;
 
@@ -166,43 +176,39 @@ mesh3 ThM;
   ofileIndex << "#file_index t(ps)" << endl;
 
   int m = -1;
-  while(t < tEnd) {
+  while(m<5) {//while(t < tEnd) {
     m++;
     t = t + dt;
-
     cout << "t = " << t << endl;
-    TRiseCenter = calcTRiseCenter(t);
-    TRiseTop    = calcTRiseTop(t);
-    TRiseBottom = calcTRiseBottom(t);
-    TRiseDecay  = calcTRiseDecay(t);
-    TRiseZDecay = calcTRiseZDecay(t);
-    //TRise = (reg==regNi)*(
-    //  //(z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
-    //  //+ (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
-    //  50
-    //)
-    //+ (reg==regSubstrate)*(
-    //    (x^2/a^2+y^2/b^2<=1)*TRiseBottom*exp(TRiseZDecay*z)
-    //  + (x^2/a^2+y^2/b^2>1)*(
-    //    //  (x==0)*TRiseBottom*exp(TRiseZDecay*sqrt(z^2+(y-b)^2))
-    //    TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
-    //  )
-    //)
-    //;
+
+    UpdateTRise(t);
+    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "s, zdecay = " << TRiseZDecay << "nm" << endl;
 
     TPlot = TRise;
-    for (int i=0; i<20; i++) {
-      cout << TPlot(0,0,30-i*3) << " ";
+    cout << "Temperature distribution at x=y=0, z=30, 27, ..." << endl;
+    for (int i=0; i<10; i++) {
+      cout << TPlot(0,0,28-i*3) << " ";
     }
     cout << endl;
-    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "nm, zdecay = " << TRiseZDecay << endl;
+    for (int i=10; i<20; i++) {
+      cout << TPlot(0,0,28-i*3) << " ";
+    }
+    cout << endl;
+    for (int i=0; i<12; i++) {
+      cout << TPlot(i*4,0,-1) << " ";
+    }
+    cout << endl;
     plot(TPlot, wait=0, fill=0, nbiso=20, value=1, cmm="T, t = "+t+" ps (dt ="+dt+")");
 
+    if(m==4) {
+      for (int i=0; i<u1[].n; i++) {
+        cout << px[][i] << " " << py[][i] << " " << pz[][i] << " " << TRise(px[][i],py[][i],pz[][i]) << endl;
+      }
+    }
+    cout << endl;
+
+    /*
     ProblemElastic;
-    //for(int j=0; j<31; j++) {
-    //  cout << TRise(0,0,j) << " ";
-    //}
-    //cout << endl;
 
     // For loop is faster than
     // uAbs = sqrt(u1^2+u2^2+u3^2);
@@ -215,7 +221,6 @@ mesh3 ThM;
     coef = 20.0/dmax;
     ThM=movemesh3(Th,transfo=[x+u1*coef,y+u2*coef,z+u3*coef]);
     plot(ThM, u3, wait=0, dim=2, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
-    //plot(ThM, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
 
     ofileTime << t 
       << " " << u1( 0, 0,  0) << " " << u2( 0, 0,  0) << " " << u3( 0, 0,  0)
@@ -252,6 +257,7 @@ mesh3 ThM;
       uuu1[][j] = uu1[][j]; uuu2[][j] = uu2[][j]; uuu3[][j] = uu3[][j]; 
       uu1[][j] = u1[][j]; uu2[][j] = u2[][j]; uu3[][j] = u3[][j]; 
     }
+    */
   }
 }
 
