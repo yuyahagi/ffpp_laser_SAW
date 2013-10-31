@@ -29,6 +29,7 @@ fespace VhParam(Th, P0, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
 Vh [u1,u2,u3], [v1,v2,v3], [uu1,uu2,uu3], [uuu1,uuu2,uuu3];
 Vh [ur1,ur2,ur3];     // For visualization
 VhScalar uAbs;
+VhScalar TPlot;
 VhParam reg=region;
 int regNi=reg(0,0,h/2);
 int regSubstrate=reg(0,0,-h/2);
@@ -91,7 +92,6 @@ func real calcTRiseDecay(real t) {
     + decay2/(decay1+decay2);
 }
 func real calcTRiseZDecay(real t) { return C2/(C1*h)/(exp(t/decay1)-1); }
-//func TRise=z; // Dummy function. This is to be updated for each step.
 func real UpdateTRise(real t) {
   TRiseCenter = calcTRiseCenter(t);
   TRiseTop    = calcTRiseTop(t);
@@ -105,12 +105,10 @@ func TRise =
 + (reg==regNi)*(z<=h/2)
   *( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
 + (reg==regSubstrate)*(x^2/a^2+y^2/b^2<=1)
-  *TRiseBottom*exp(-TRiseZDecay*abs(z))
+  *TRiseBottom*TRiseDecay*exp(-TRiseZDecay*abs(z))
 + (reg==regSubstrate)*(x^2/a^2+y^2/b^2>1)
-  *TRiseBottom*exp(-TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
+  *TRiseBottom*TRiseDecay*exp(-TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(y,x))^2) )^2 ))
 +0;
-
-//TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
 
 func u10 = 0; func u20 = 0; func u30 = 0;
 
@@ -123,7 +121,7 @@ macro div(u1,u2,u3) ( dx(u1)+dy(u2)+dz(u3) ) // EOM
 
 problem ProblemElastic([u1,u2,u3],[v1,v2,v3]) =
   int3d(Th,21)(
-		lambda1*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu1*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
+  	lambda1*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu1*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
     + rho1/dt^2*(u1*v1+u2*v2+u3*v3)
   )
   + int3d(Th,21)(
@@ -180,8 +178,29 @@ mesh3 ThM;
     cout << "t = " << t << endl;
 
     UpdateTRise(t);
-    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "s, zdecay = " << TRiseZDecay << "nm" << endl;
+    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << TRiseDecay << ", zdecay = " << 1/TRiseZDecay << "nm" << endl;
 
+    TPlot = TRise;
+    cout << "Temperature distribution at x=y=0, z=30, 27, ..." << endl;
+    for (int i=0; i<10; i++) {
+      cout << TPlot(0,0,28-i*3) << " ";
+    }
+    cout << endl;
+    for (int i=10; i<20; i++) {
+      cout << TPlot(0,0,28-i*3) << " ";
+    }
+    cout << endl;
+    for (int i=0; i<14; i++) {
+      cout << TPlot(i*4,0,-1) << " ";
+    }
+    cout << endl;
+    //plot(TPlot, wait=0, fill=0, nbiso=20, value=1, cmm="T, t = "+t+" ps (dt ="+dt+")");
+    if(rint(10*t) % 80 == 0) {
+      cout << "Wait..." << endl;
+      plot(TPlot, wait=1, fill=0, nbiso=20, value=1, cmm="T, t = "+t+" ps (dt ="+dt+")");
+    }
+
+    /*
     ProblemElastic;
 
     // For loop is faster than
@@ -231,6 +250,7 @@ mesh3 ThM;
       uuu1[][j] = uu1[][j]; uuu2[][j] = uu2[][j]; uuu3[][j] = uu3[][j]; 
       uu1[][j] = u1[][j]; uu2[][j] = u2[][j]; uu3[][j] = u3[][j]; 
     }
+    */
   }
 }
 
