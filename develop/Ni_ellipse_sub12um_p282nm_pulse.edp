@@ -42,16 +42,12 @@ real rho1 = 8.9e-24;       // rho [kg/nm^3]
 real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
 real mu1 = E1/(2*(1+nu1));
 real alpha1 = 1.3e-5; // [K-1] Linear thermal expansion
-real C1 = 3.965e-21;  // [J nm-1 K-1] Specific heat capacity
 
 // Si dioxide
 real E2 = 0.7e-22, nu2 = 0.17; // E [kg/(nm ps^2)] for the substrate
 real rho2 = 2.65e-24;       // rho [kg/nm^3]
 real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
 real mu2 = E2/(2*(1+nu2));
-real alpha2 = 2e-5; // [K-1] Linear thermal expansion
-real C2 = 2.65e-21; // [J nm-1 K-1] Specific heat capacity
-real kappa2 = 1.5e-21;  // [J ps-1 nm-1 K-1] Thermal conductivity
 
 //////////////////////////////////////////////////////////////////////////////
 // Other simulation parameters
@@ -81,7 +77,6 @@ real decay1 = 500;  // [ps]
 real decay2 = 4.548;// [ps]
 
 real TRiseCenter=0, TRiseTop=0, TRiseBottom=0, TRiseDecay=1;
-real TRiseZDecay=1e6;
 //VhScalar TRise;
 func real calcTRiseCenter(real t) { return A1*(1-exp(-t/A2)); }
 func real calcTRiseTop(real t)    { return TRiseCenter + A3*(1-exp(-t/A4))*exp(-t/A5); }
@@ -90,26 +85,16 @@ func real calcTRiseDecay(real t) {
   return (1-decay2/(decay1+decay2)*exp(-t/decay2))*exp(-t/decay1)
     + decay2/(decay1+decay2);
 }
-func real calcTRiseZDecay(real t) { return C2/(C1*h)/(exp(t/decay1)-1); }
 func real UpdateTRise(real t) {
   TRiseCenter = calcTRiseCenter(t);
   TRiseTop    = calcTRiseTop(t);
   TRiseBottom = calcTRiseBottom(t);
   TRiseDecay  = calcTRiseDecay(t);
-  TRiseZDecay = calcTRiseZDecay(t);
 }
-func TRise =
-(reg==regNi)*(z>h/2)
-  *( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
-+ (reg==regNi)*(z<=h/2)
-  *( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
-+ (reg==regSubstrate)*(x^2/a^2+y^2/b^2<=1)
-  *TRiseBottom*exp(-TRiseZDecay*abs(z))
-+ (reg==regSubstrate)*(x^2/a^2+y^2/b^2>1)
-  *TRiseBottom*exp(-TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
-+0;
-
-//TRiseBottom*exp(TRiseZDecay*sqrt( z^2 + ( sqrt(x^2+y^2)-sqrt(b^2+(a^2-b^2)*cos(atan2(x,y))^2) )^2 ))
+func TRise = (reg==regNi)*(
+  (z>h/2)*( (z*2/h-1)*TRiseTop + (2-z*2/h)*TRiseCenter) * TRiseDecay
+  + (z<=h/2)*( z*2/h*TRiseCenter + (1-z*2/h)*TRiseBottom) * TRiseDecay
+) + 0;
 
 func u10 = 0; func u20 = 0; func u30 = 0;
 
@@ -135,7 +120,6 @@ problem ProblemElastic([u1,u2,u3],[v1,v2,v3]) =
   )
   + int3d(Th,22)(
     rho2/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
-    -3*alpha2*E2/(1-2*nu2)*TRise*div(v1,v2,v3)
   )
   + on(5, u1=0, u2=0, u3=0)
   + on(7, 9, 11, 13, u1=0)
@@ -179,7 +163,7 @@ mesh3 ThM;
     cout << "t = " << t << endl;
 
     UpdateTRise(t);
-    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "s, zdecay = " << TRiseZDecay << "nm" << endl;
+    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "s" << endl;
 
     ProblemElastic;
 
