@@ -20,40 +20,44 @@ load "medit"
 // Finite Element spaces, functions, and macros
 //////////////////////////////////////////////////////////////////////////////
 real h = 30;  // [nm] height of the Ni ellipse
-real a = 37.5, b = 75.0; // [nm] size of the ellipse
-mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L12um_periodic_top.mesh");
+mesh3 Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_110nm_coating_Si_sub_p282nm_L12um_periodic.mesh");
 
-fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
-fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
-fespace VhParam(Th, P0, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+fespace Vh(Th, [P1,P1,P1], periodic=[[9,y,z],[11,y,z],[8,x,z],[10,x,z],[13,y,z],[15,y,z],[12,x,z],[14,x,z]]);
+fespace VhScalar(Th, P1, periodic=[[9,y,z],[11,y,z],[8,x,z],[10,x,z],[13,y,z],[15,y,z],[12,x,z],[14,x,z]]);
+fespace VhParam(Th, P0, periodic=[[9,y,z],[11,y,z],[8,x,z],[10,x,z],[13,y,z],[15,y,z],[12,x,z],[14,x,z]]);
 Vh [u1,u2,u3], [v1,v2,v3], [uu1,uu2,uu3], [uuu1,uuu2,uuu3];
 Vh [ur1,ur2,ur3];     // For visualization
-VhScalar uAbs;
+VhScalar uAbs, TPlot;
 VhParam reg=region;
 int regNi=reg(0,0,h/2);
-int regSubstrate=reg(0,0,-h/2);
+int regCoating=reg(0,0,-10);
+int regSubstrate=reg(0,0,-300);
+
+plot(Th, wait=1);
 
 //////////////////////////////////////////////////////////////////////////////
 // Material parameters
+// Metal element, coating, and substrate
 //////////////////////////////////////////////////////////////////////////////
-// Nickel
 real E1 = 2.0e-22, nu1 = 0.31; // E [kg/(nm ps^2)] for the ellipse
 real rho1 = 8.9e-24;       // rho [kg/nm^3]
 real lambda1 = E1*nu1/((1+nu1)*(1-2*nu1));
 real mu1 = E1/(2*(1+nu1));
 real alpha1 = 1.3e-5; // [K-1] Linear thermal expansion
-
-// Si dioxide
-real E2 = 0.7e-22, nu2 = 0.17; // E [kg/(nm ps^2)] for the substrate
-real rho2 = 2.65e-24;       // rho [kg/nm^3]
+real E2 = 1.61e-22, nu2 = 0.3; // E [kg/(nm ps^2)] for the substrate
+real rho2 = 9.68e-24;       // rho [kg/nm^3]
 real lambda2 = E2*nu2/((1+nu2)*(1-2*nu2));
 real mu2 = E2/(2*(1+nu2));
+real E3 = 1.85e-22, nu3 = 0.28; // E [kg/(nm ps^2)] for the substrate
+real rho3 = 2.329e-24;       // rho [kg/nm^3]
+real lambda3 = E3*nu3/((1+nu3)*(1-2*nu3));
+real mu3 = E3/(2*(1+nu3));
 
 //////////////////////////////////////////////////////////////////////////////
 // Other simulation parameters
 //////////////////////////////////////////////////////////////////////////////
 string  filename = "sols/Ni_ellipse_sub12um_p282nm_pulse";
-real dt = 0.4, tStart = 0.0, tEnd = 2500.0;  // in ps
+real dt = 0.2, tStart = 0.0, tEnd = 1250.0;  // in ps
 real[int] viso(20);
 for(int i=0; i<20; i++) {
   viso[i] = -1.8 + i*0.2;
@@ -61,19 +65,20 @@ for(int i=0; i<20; i++) {
 
 cout << "E1 = " << E1 << ", nu1 = " << nu1 << ", rho1 = " << rho1 << ", mu1 = " << mu1 << ", lambda1 = " << lambda1 << endl;
 cout << "E2 = " << E2 << ", nu2 = " << nu2 << ", rho2 = " << rho2 << ", mu2 = " << mu2 << ", lambda2 = " << lambda2 << endl;
+cout << "E3 = " << E3 << ", nu3 = " << nu3 << ", rho3 = " << rho3 << ", mu3 = " << mu3 << ", lambda3 = " << lambda3 << endl;
 cout << "dt = " << dt << ", tEnd = " << tEnd << endl;
 //plot(Th, wait=1);
 
 // Heating from fit
-real A1 = 51.378; // [K]
-real A2 = 1.3736; // [ps]
-real A3 = 30.607; // [K]
-real A4 = 1.0204; // [ps]
-real A5 = 6.0719; // [ps]
-real A6 = -36.768;// [K]
-real A7 = 1.5713; // [ps]
-real A8 = 6.4446; // [ps]
-real decay1 = 500;  // [ps]
+real A1 = 25.509; // [K]
+real A2 = 1.3066; // [ps]
+real A3 = 14.777; // [K]
+real A4 = 0.9244; // [ps]
+real A5 = 5.9716; // [ps]
+real A6 = -17.654;// [K]
+real A7 = 1.4102; // [ps]
+real A8 = 6.3581; // [ps]
+real decay1 = 60;  // [ps]
 real decay2 = 4.548;// [ps]
 
 real TRiseCenter=0, TRiseTop=0, TRiseBottom=0, TRiseDecay=1;
@@ -106,24 +111,31 @@ macro epsilon(u1,u2,u3)  [dx(u1),dy(u2),dz(u3),(dz(u2)+dy(u3))/sqrt2,(dz(u1)+dx(
 macro div(u1,u2,u3) ( dx(u1)+dy(u2)+dz(u3) ) // EOM
 
 problem ProblemElastic([u1,u2,u3],[v1,v2,v3]) =
-  int3d(Th,21)(
-  	lambda1*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu1*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
+  int3d(Th,1)(
+		lambda1*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu1*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
     + rho1/dt^2*(u1*v1+u2*v2+u3*v3)
   )
-  + int3d(Th,21)(
+  + int3d(Th,1)(
     rho1/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
     -3*alpha1*E1/(1-2*nu1)*TRise*div(v1,v2,v3)
   )
-  + int3d(Th,22)(
+  + int3d(Th,2)(
 		lambda2*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu2*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
     + rho2/dt^2*(u1*v1+u2*v2+u3*v3)
   )
-  + int3d(Th,22)(
+  + int3d(Th,2)(
     rho2/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
   )
-  + on(5, u1=0, u2=0, u3=0)
-  + on(7, 9, 11, 13, u1=0)
-  + on(6, 8, 10, 12, u2=0)
+  + int3d(Th,3)(
+		lambda3*div(u1,u2,u3)*div(v1,v2,v3) + 2.*mu3*epsilon(u1,u2,u3)'*epsilon(v1,v2,v3)
+    + rho3/dt^2*(u1*v1+u2*v2+u3*v3)
+  )
+  + int3d(Th,3)(
+    rho3/dt^2 * ( (-2*uu1+uuu1)*v1 + (-2*uu2+uuu2)*v2 + (-2*uu3+uuu3)*v3 )
+  )
+  + on(6, u1=0, u2=0, u3=0)
+  + on(9, 11, 13, 15, 17, 19, u1=0)
+  + on(8, 10, 12, 14, 16, 18, u2=0)
 ;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -163,7 +175,10 @@ mesh3 ThM;
     cout << "t = " << t << endl;
 
     UpdateTRise(t);
-    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << 1/TRiseDecay << "s" << endl;
+
+    cout << "Tt = " << TRiseTop << ", Tc = " << TRiseCenter << ", Tb = " << TRiseBottom << ", decay = " << TRiseDecay << endl;
+    TPlot = TRise;
+    plot(TPlot, wait=0, fill=0, nbiso=20, value=1, cmm="T, t = "+t+" ps (dt ="+dt+")");
 
     ProblemElastic;
 
@@ -178,6 +193,7 @@ mesh3 ThM;
     coef = 20.0/dmax;
     ThM=movemesh3(Th,transfo=[x+u1*coef,y+u2*coef,z+u3*coef]);
     plot(ThM, u3, wait=0, dim=2, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
+    //plot(ThM, wait=0, fill=0, nbiso=20, value=1, cmm="Z, t = "+t+" ps (dt ="+dt+"), coef amplification = "+coef);
 
     ofileTime << t 
       << " " << u1( 0, 0,  0) << " " << u2( 0, 0,  0) << " " << u3( 0, 0,  0)
