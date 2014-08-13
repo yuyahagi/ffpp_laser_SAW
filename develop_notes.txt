@@ -1,0 +1,30 @@
+2013-10-22 Yu Yahagi
+
+Moved the local development directory and removed irrelevant
+directories/files. Now you should copy the developed scripts from the develop/
+folder to somewhere else to run the simulations.
+
+2013-10-11 Yu Yahagi
+
+Now the main development (and tracking by git) is done for
+'d400nm_E70GPa_nu0.17_rho2.65g_cc/'. The other directories only contain copies
+from this folder with slight modifications for different simulation
+conditions and simulation results/analysis, which are not tracked by git.
+
+Modified the FF++ simulation, not calcHmel, to output displacement in m
+instead of nm. I still keep the previously simulated results in the sols/
+directories and care must be taken for conversion to Hmel and any other use.
+
+2013-10-04 Yu Yahagi
+
+Simulation of elastic mode in ellipse+10um-thick substrate.
+The output of FF++ simulations are to be converted to Hmel using
+calcHmel and imported to OOMMF simulations.
+The current version of calcHmel (v0.901.1) treat the displacement
+as in unit of m, not nm, which is what the FF++ simulations actually
+output. As a result, the magnetoelastic field in the OOMMF simulations
+is overestimated. You would probably like to adjust the amplitude of
+Hmel by a factor of 1e-3 or even smaller.
+
+For future work, I will modify calcHmel to handle the unit correctly.
+For now, keep this in mind.

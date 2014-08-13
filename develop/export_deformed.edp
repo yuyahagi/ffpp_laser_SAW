@@ -1,0 +1,53 @@
+load  "msh3"
+load  "medit"
+
+string  filename = "sols/Ni_ellipse_sub12um_p282nm_pulse";
+mesh3	Th = readmesh3("../gmsh_meshes/Ni_ellipse150x75x30nm_Si_sub_p282nm_L12um_periodic_top.mesh");
+//plot(Th, wait=1);
+
+fespace Vh(Th, [P1,P1,P1], periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+fespace VhScalar(Th, P1, periodic=[[7,y,z],[9,y,z],[6,x,z],[8,x,z]]);
+Vh [u1,u2,u3];
+VhScalar uAbs, ur, uphi;
+
+// For movemesh3
+mesh3 ThM;
+real  dmax;
+real  coef;
+real  coefFix = 1e8;
+
+int nt = 2500 / 2;  // Number of data points
+int ne;             // Number of data elements in a mesh
+int t;
+for(int i=0; i<nt; i++) {
+  t = (i+1)*2;
+  ifstream ifile(filename+"."+(100000+t*10)+".txt");
+  ifile >> ne;	// Number of elements in the mesh
+  for (int j=0; j<ne; j++) {
+  	ifile >> u1[][j] >> u2[][j] >> u3[][j];
+  }
+
+  // For loop is faster than
+  // uAbs = sqrt(u1^2+u2^2+u3^2);
+  for (int j=0; j<uAbs.n; j++) {
+    uAbs[][j] = sqrt(u1[][j*3]^2+u2[][j*3+1]^2+u3[][j*3+2]^2);
+  }
+  dmax = uAbs[].max;
+
+  // The factor by whic visualization is goitg to be enphasized.
+  // For a physically meaningful pictures, this should to kept constant for 
+  // all the images. For this approach, use coefFix instead.
+  coef = 20.0/dmax;
+  cout << "t = " << t << ", coef: " << coef << endl;
+
+  // Save deformed mesh
+  // For visualization with the same emphasis factor, use coefFix instead
+  // in the following movemesh3 calls.
+  cout << "Deforming the mesh..." << endl;
+  ThM=movemesh3(Th,transfo=[x+u1*coef,y+u2*coef,z+u3*coef]);
+  // ThM=movemesh3(Th,transfo=[x+u1*coefFix,y+u2*coefFix,z+u3*coefFix]);
+  savemesh(ThM, filename+"_deformed."+(100000+i)+".meshb");
+
+  // Visualization
+  //plot(ThM, u3, wait=0, fill=0, nbiso=20, value=1, cmm="t = "+t+" ps, coef amplification = "+coef);
+}
