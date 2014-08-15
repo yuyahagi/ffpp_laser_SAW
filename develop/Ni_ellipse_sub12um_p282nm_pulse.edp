@@ -70,6 +70,7 @@ cout << "dt = " << dt << ", tEnd = " << tEnd << endl;
 //plot(Th, wait=1);
 
 // Heating from fit
+// Assumes Ni elements and absorbed fluence of 0.387mJ/cm2
 real A1 = 25.509; // [K]
 real A2 = 1.3066; // [ps]
 real A3 = 14.777; // [K]
@@ -126,6 +127,8 @@ varf vElastic([u1,u2,u3],[v1,v2,v3])=
   + on(6, u1=0, u2=0, u3=0)
   + on(9, 11, 13, 15, 17, 19, u1=0)
   + on(8, 10, 12, 14, 16, 18, u2=0)
+  // When u1!=0,u2!=0, the boundary value is determined by bcl[].
+  // When u1=0,u2=0, u is set to 0 at the boundary.
   ;
 
 varf vMass1([uu1,uu2,uu3],[v1,v2,v3]) =
@@ -163,9 +166,8 @@ matrix A = vElastic(Vh,Vh,tgv=tgv,solver=sparsesolver);
 matrix M1 = vMass1(Vh,Vh);
 matrix M2 = vMass2(Vh,Vh);
 real[int] bcn = vElastic(0,Vh);
-real[int] bcl = tgv*[u1,u2,u3];
-real[int] bExpansion = vExpansion(0,Vh);
-
+func fbc1 = 0; func fbc2 = 0; func fbc3 = 0;
+Vh [bcl,bcl2,bcl3] = tgv*[fbc1,fbc2,fbc3];
 real nb = u1[].n;
 real[int] b(nb);
 
@@ -217,7 +219,7 @@ mesh3 ThM;
     for(int j=0; j<nb;j++) {
       uu1[][j] = u1[][j];
     }
-    b = bcn ? bcl : b;
+    b = bcn ? bcl[] : b;
     u1[] = A^-1*b;
 
     // For loop is faster than
